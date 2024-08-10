@@ -180,7 +180,8 @@ async function render_email(id) {
     <div class="body">${response.body}</div>
     `
     if (mailbox !== "sent") {
-      emailView.innerHTML += `<button class="btn btn-primary" style="margin: 1rem 2rem;" onclick="archiving(${response.id}, ${!response.archived})">${!response.archived ? "Archive" : "Unarchive"}</button>`;
+      emailView.innerHTML += `<button class="btn btn-primary" style="margin: 1rem 2rem;" onclick="archiving(${response.id}, ${!response.archived})">${!response.archived ? "Archive" : "Unarchive"}</button>
+      <button class="btn btn-primary" style="margin: 1rem 2rem;" onclick="reply(${response.id})">Reply</button>`;
     }
     //setting the read status to true
     if (!response.read) {
@@ -227,6 +228,43 @@ async function archiving(id, shouldArchive) {
     await load_mailbox('inbox');
   } catch (err) {
     // Handle any errors that occurred during fetch or mailbox loading
+    console.log(err.message);
+  }
+}
+
+//function for replying to an email
+async function reply(id) {
+  try {
+    //fetching the email
+    let response_raw = await fetch(`emails/${id}`);
+    const response = await response_raw.json();
+
+    // if the email does not exist
+    if (response.error !== undefined) {
+      alert(response.error);
+      return;
+    }
+    //opening up the form
+    compose_email();
+
+    //setting the sender to be the recipient
+    document.querySelector("#compose-recipients").value = response.sender;
+
+    //handling the subject line
+    let subject;
+    if (response.subject.startsWith("Re: ")) {
+      subject = response.subject;
+    } else {
+      subject = `Re: ${response.subject}`;
+    }
+
+    //setting the subject
+    document.querySelector("#compose-subject").value = subject;
+    //setting the body
+    document.querySelector("#compose-body").value = "\n".repeat(3) + "-".repeat(80) + "\n" + "On " + response.timestamp + " " + response.sender + " wrote: " + "\n\n" +  response.body;
+  } 
+  //in case
+  catch(err) {
     console.log(err.message);
   }
 }

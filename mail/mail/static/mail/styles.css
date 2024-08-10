@@ -2,7 +2,7 @@ html {
     font-family: sans-serif;
 }
 textarea {
-    min-height: 400px;
+    min-height: 200px;
 }
 .email, .email-details {
     padding: 0 5rem;
