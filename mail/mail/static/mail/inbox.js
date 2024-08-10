@@ -23,6 +23,7 @@ function compose_email() {
   // Show compose view and hide other views
   document.querySelector('#emails-view').style.display = 'none';
   document.querySelector('#compose-view').style.display = 'block';
+  document.querySelector("#email-view").innerHTML = "";
 
   // Clear out composition fields
   document.querySelector('#compose-recipients').value = '';
@@ -35,8 +36,8 @@ async function load_mailbox(mailbox) {
   // Show the mailbox and hide other views
   document.querySelector('#emails-view').style.display = 'block';
   document.querySelector('#compose-view').style.display = 'none';
-
-  get_mailbox(mailbox);
+  document.querySelector("#email-view").innerHTML = "";
+  await get_mailbox(mailbox);
 }
 
 
@@ -71,7 +72,7 @@ async function submit_email(e) {
     } else {
       alert(result.error);
     }
-    load_mailbox('sent');
+    await load_mailbox('sent');
   }
   //in case something goes wrong
   catch(err) {
@@ -85,12 +86,12 @@ async function get_mailbox(mailbox_type) {
   // let's try smth
   try {
     //clear the emails box first
-    emailsBox.innerHTML = `<h3 style="padding: 0.5rem 3rem; font-size: 2rem; font-weight: bold;">${mailbox_type.charAt(0).toUpperCase() + mailbox_type.slice(1)}</h3>`;
+    emailsBox.innerHTML = `<h3 data-type="${mailbox_type}" style="padding: 0.5rem 3rem; font-size: 2rem; font-weight: bold;">${mailbox_type.charAt(0).toUpperCase() + mailbox_type.slice(1)}</h3>
+    <div id="email-view"></div>`;
 
     // get the emails filtered according to the mailbox type
     const response_raw = await fetch(`/emails/${mailbox_type}`);
     const responseArray = await response_raw.json();
-
 
     // if I sent the wrong mailbox type
     if (responseArray.error !== undefined) {
@@ -133,6 +134,99 @@ const create_emails = (response, mailbox_type) => {
     //handling the background color according to the read status
     new_div.style.backgroundColor = response.read ? "#d3d3d3" : "white";
 
+    //adding an event listener
+    new_div.onclick = () =>  render_email(response.id);
     //appending to the box
     emailsBox.append(new_div);
+}
+
+
+//function for rendering an email
+async function render_email(id) {
+  //getting h3 element
+  const h3 = emailsBox.querySelector("h3");
+
+  //getting the attribute for archiving purposes
+  const mailbox = h3.getAttribute("data-type");
+
+  //changing the view, getting rid of emails list
+  emailsBox.innerHTML = "";
+  emailsBox.appendChild(h3);
+  emailsBox.innerHTML +=  `<div id="email-view"></div>`;
+
+  try {
+
+    //fetching the email
+    let response_raw = await fetch(`emails/${id}`);
+    const response = await response_raw.json();
+
+    // if the email does not exist
+    if (response.error !== undefined) {
+      alert(response.error);
+      return;
+    }
+    //creating view for seeing the email
+    let emailView = document.querySelector("#email-view");
+    emailView.innerHTML = `
+    <hr>
+    <div  class="email-details" style="padding: 1.5rem;">
+      <div class="column-flex">
+        <div><b>From</b>${response.sender}</div>
+        <div><b>To</b>${response.recipients.join(", ")}</div>
+      </div>
+      <div class="subject">${response.subject}</div>
+      <div class="timestamp">${response.timestamp}</div>
+    </div>
+    <div class="body">${response.body}</div>
+    `
+    if (mailbox !== "sent") {
+      emailView.innerHTML += `<button class="btn btn-primary" style="margin: 1rem 2rem;" onclick="archiving(${response.id}, ${!response.archived})">${!response.archived ? "Archive" : "Unarchive"}</button>`;
+    }
+    //setting the read status to true
+    if (!response.read) {
+      setToRead(id);
+    }
+
+  }
+  catch (err) {
+    console.log(err.message);
+  }
+}
+
+//function for setting read to true
+function setToRead(id) {
+
+    //fetching, checking, throwing an error
+    fetch(`emails/${id}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      read: true,
+    })}).then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+    }).catch(err => console.log(err.message));
+}
+
+//function for archiving or unarchiving
+async function archiving(id, shouldArchive) {
+  try {
+    // Perform the fetch request and wait for it to complete
+    const response = await fetch(`emails/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        archived: shouldArchive,
+      })});
+
+    // Check if the response was not ok and throw an error if necessary
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    // Fetch was successful, now load the mailbox
+    await load_mailbox('inbox');
+  } catch (err) {
+    // Handle any errors that occurred during fetch or mailbox loading
+    console.log(err.message);
+  }
 }
